@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>SPRINTGATE Pro – Vinklade linjer & Hög precision</title>
+  <title>SPRINTGATE Pro – iOS Fixad</title>
   <style>
     :root {
       --bg: #0b0e14;
@@ -95,6 +95,24 @@
 
     #overlayCanvas {
       z-index: 2;
+    }
+
+    .center-prompt {
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: rgba(11, 14, 20, 0.75);
+      padding: 16px;
+      text-align: center;
+    }
+
+    .center-prompt.hidden {
+      display: none !important;
     }
 
     .hud {
@@ -203,7 +221,7 @@
 
     .slider-row label {
       color: var(--muted);
-      min-width: 145px;
+      min-width: 135px;
     }
 
     input[type="range"] {
@@ -213,11 +231,23 @@
     .slowmo-bar {
       display: none;
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
     }
 
     .slowmo-bar.visible {
       display: flex;
+    }
+
+    .file-btn-label {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-align: center;
+      cursor: pointer;
     }
 
     .history-list {
@@ -248,11 +278,14 @@
       margin-left: 6px;
     }
 
-    .hint-text {
-      font-size: 0.78rem;
-      color: var(--muted);
-      margin: 0;
-      line-height: 1.4;
+    .error-banner {
+      background: rgba(255, 61, 87, 0.15);
+      border: 1px solid var(--finish);
+      color: #ffb3be;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      display: none;
     }
 
     .hidden {
@@ -271,12 +304,22 @@
   </header>
 
   <div class="viewport-wrap" id="viewport">
-    <video id="videoEl" playsinline muted></video>
+    <video id="videoEl" playsinline webkit-playsinline muted autoplay preload="auto"></video>
     <canvas id="overlayCanvas"></canvas>
+
+    <!-- Startprompt krävs av iOS Safari -->
+    <div class="center-prompt" id="startPrompt">
+      <button id="btnStartCamBig" class="btn-primary" style="font-size:1rem; padding:12px 20px;">
+        Starta kamera
+      </button>
+      <span id="promptSubtext" style="font-size:0.8rem; color:var(--muted);">
+        Tryck för att ge webbläsaren åtkomst till kameran
+      </span>
+    </div>
 
     <div class="hud">
       <div class="timer-box">
-        <div class="status-badge" id="stateLabel">Redo – Dra punkterna</div>
+        <div class="status-badge" id="stateLabel">Redo</div>
         <div class="timer-value" id="timerDisplay">0.000 s</div>
       </div>
 
@@ -295,9 +338,7 @@
   </div>
 
   <div class="controls">
-    <p class="hint-text">
-      Dra de <strong>4 cirklarna</strong> direkt i bilden för att vinkla Start (grön) och Mål (röd) längs marken eller kroppen.
-    </p>
+    <div class="error-banner" id="errorBanner"></div>
 
     <!-- Live-kontroller -->
     <div class="btn-row" id="liveControls">
@@ -309,18 +350,27 @@
     <!-- 240 fps Video-kontroller -->
     <div class="panel slowmo-bar" id="slowmoControls">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
-        <input type="file" id="videoUpload" accept="video/*" style="font-size:0.8rem; max-width:210px;" />
-        <select id="fpsFactor" style="background:#1e2636;color:#fff;border:1px solid var(--border);border-radius:6px;padding:7px;">
+        <label class="file-btn-label" for="videoUpload">Välj video från kamerarulle</label>
+        <input type="file" id="videoUpload" accept="video/*,video/mp4,video/quicktime" style="display:none;" />
+
+        <select id="fpsFactor" style="background:#1e2636;color:#fff;border:1px solid var(--border);border-radius:8px;padding:9px;">
           <option value="8" selected>240 fps (8× slow-mo)</option>
           <option value="4">120 fps (4× slow-mo)</option>
-          <option value="1">60 fps (1× realtid)</option>
+          <option value="1">60 / 30 fps (1× realtid)</option>
         </select>
       </div>
+
+      <div class="slider-row">
+        <label for="videoScrubber" style="min-width:95px;">Tid: <span id="videoTimeLabel">0.00 s</span></label>
+        <input type="range" id="videoScrubber" min="0" max="1000" value="0" />
+      </div>
+
       <div class="btn-row">
         <button id="btnPlayPause">Spela / Pausa</button>
         <button id="btnStepBack">-1 ruta</button>
         <button id="btnStepFwd">+1 ruta</button>
       </div>
+
       <div class="btn-row" style="grid-template-columns: 1fr 1fr;">
         <button id="btnArmVideo" class="btn-primary">Aktivera auto-detektering</button>
         <button id="btnResetVideo">Nollställ tid</button>
@@ -348,7 +398,7 @@
     <!-- Historik -->
     <div class="panel">
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <strong style="font-size:0.9rem;">Sparade tider (sub-frame)</strong>
+        <strong style="font-size:0.9rem;">Sparade tider</strong>
         <button id="btnCopyTimes" style="padding:5px 10px; font-size:0.78rem;">Kopiera tider</button>
       </div>
       <ul class="history-list" id="historyList"></ul>
@@ -359,8 +409,9 @@
     const video = document.getElementById('videoEl');
     const canvas = document.getElementById('overlayCanvas');
     const ctx = canvas.getContext('2d');
+    const startPrompt = document.getElementById('startPrompt');
+    const errorBanner = document.getElementById('errorBanner');
 
-    // Offscreen canvas för högupplöst linjesampling (640x360 för exakt geometri)
     const procCanvas = document.createElement('canvas');
     procCanvas.width = 640;
     procCanvas.height = 360;
@@ -369,8 +420,9 @@
     let mode = 'live';
     let facingMode = 'environment';
     let currentStream = null;
+    let currentObjectUrl = null;
 
-    // 4 fritt flyttbara punkter i normaliserade videokoordinater (0.0 - 1.0)
+    // 4 fritt flyttbara punkter
     let gates = {
       start: {
         p1: { x: 0.25, y: 0.22 },
@@ -388,29 +440,33 @@
       }
     };
 
-    // Aktivt draghandtag: { gate: 'start'|'finish', point: 'p1'|'p2' }
     let activeHandle = null;
-
-    // Tillståndsmaskin: 'IDLE' | 'ARMED' | 'RUNNING' | 'FINISHED'
     let state = 'IDLE';
     let startTimeSec = 0;
     let prevClockSec = 0;
     let lastTriggerWallMs = 0;
     const DEBOUNCE_MS = 350;
 
-    // Parametrar
-    let triggerThresholdPct = 16; // Hur stor andel av linjen som måste brytas (%)
-    let lumaDeltaThreshold = 28;  // Ljusstyrkeskillnad per pixel (0-255)
-    const SAMPLE_COUNT = 200;     // 200 punkter längs varje linje
+    let triggerThresholdPct = 16;
+    let lumaDeltaThreshold = 28;
+    const SAMPLE_COUNT = 200;
     let times = [];
-
-    // FPS-mätning
     let frameTimestamps = [];
 
+    function showError(msg) {
+      if (!msg) {
+        errorBanner.style.display = 'none';
+        return;
+      }
+      errorBanner.textContent = msg;
+      errorBanner.style.display = 'block';
+    }
+
     // Ljudgenerator
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let audioCtx = null;
     function beep(freq = 880, duration = 0.1) {
       try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
@@ -425,25 +481,46 @@
       } catch (_) {}
     }
 
+    // iOS-säker kamerastart
     async function startCamera() {
+      showError('');
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showError('Kameran blockeras av webbläsaren. Kontrollera att sidan öppnas via HTTPS i Safari (inte inuti en annan app).');
+        return;
+      }
+
       if (currentStream) {
         currentStream.getTracks().forEach(t => t.stop());
+        currentStream = null;
       }
+
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+
       try {
+        // Enkla, iOS-kompatibla constraints utan tvingande high-fps som kraschar Safari
         currentStream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode,
+            facingMode: { ideal: facingMode },
             width: { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { ideal: 120, min: 30 }
+            height: { ideal: 720 }
           },
           audio: false
         });
+
         video.srcObject = currentStream;
+        video.muted = true;
+        video.playsInline = true;
         await video.play();
+
+        startPrompt.classList.add('hidden');
         resetBackgrounds();
+        document.getElementById('stateLabel').textContent = 'Kamera aktiv';
       } catch (err) {
-        alert('Kunde inte starta kameran. Kontrollera kamerabehörighet och att sidan körs via HTTPS.');
+        console.error(err);
+        startPrompt.classList.remove('hidden');
+        showError(`Kamerafel (${err.name}): Kontrollera att kameran är tillåten under Inställningar → Safari → Kamera.`);
       }
     }
 
@@ -454,7 +531,6 @@
       gates.finish.prevSignal = 0;
     }
 
-    // Beräkna videons faktiska rektangel inuti canvas (pga object-fit: contain)
     function getVideoViewportRect() {
       const cw = canvas.width;
       const ch = canvas.height;
@@ -478,12 +554,10 @@
       return { offsetX, offsetY, renderW, renderH };
     }
 
-    // Sampla luminans längs vinklad linje (inkl. 2 px sidoförskjutning för brusreducering)
     function sampleGateSignal(gate, frameData, w, h) {
       const dx = gate.p2.x - gate.p1.x;
       const dy = gate.p2.y - gate.p1.y;
       const len = Math.hypot(dx * w, dy * h) || 1;
-      // Normalvektor (vinkelrät mot linjen) för 3-punkts tvärsnitt
       const nx = (-dy * h) / len;
       const ny = (dx * w) / len;
 
@@ -495,7 +569,6 @@
         const cx = (gate.p1.x + dx * t) * (w - 1);
         const cy = (gate.p1.y + dy * t) * (h - 1);
 
-        // Medelvärde över 3 pixlar tvärs över linjen
         let sumLuma = 0;
         let validSamples = 0;
         for (let offset = -1; offset <= 1; offset++) {
@@ -503,21 +576,15 @@
           const sy = Math.round(cy + ny * offset);
           if (sx >= 0 && sx < w && sy >= 0 && sy < h) {
             const idx = (sy * w + sx) * 4;
-            const r = frameData[idx];
-            const g = frameData[idx + 1];
-            const b = frameData[idx + 2];
-            sumLuma += 0.299 * r + 0.587 * g + 0.114 * b;
+            sumLuma += 0.299 * frameData[idx] + 0.587 * frameData[idx + 1] + 0.114 * frameData[idx + 2];
             validSamples++;
           }
         }
         const luma = validSamples > 0 ? sumLuma / validSamples : 0;
         currentLuma[i] = luma;
 
-        if (gate.bgLuma) {
-          const diff = Math.abs(luma - gate.bgLuma[i]);
-          if (diff > lumaDeltaThreshold) {
-            brokenPoints++;
-          }
+        if (gate.bgLuma && Math.abs(luma - gate.bgLuma[i]) > lumaDeltaThreshold) {
+          brokenPoints++;
         }
       }
 
@@ -528,7 +595,6 @@
 
       const signalPct = (brokenPoints / SAMPLE_COUNT) * 100;
 
-      // Adaptiv bakgrundsuppdatering: om linjen är lugn (< 4% ändring), anpassa långsamt till ljusförändringar
       if (signalPct < 4 && activeHandle === null) {
         const alpha = 0.03;
         for (let i = 0; i < SAMPLE_COUNT; i++) {
@@ -549,12 +615,10 @@
       }
     }
 
-    // Linjär sub-frame-interpolering för exakt korsningstidpunkt mellan två bildrutor
     function interpolateCrossingTime(prevT, currT, prevSig, currSig, threshold) {
       if (currSig <= prevSig || prevSig >= threshold) return currT;
       const fraction = (threshold - prevSig) / (currSig - prevSig);
-      const clamped = Math.max(0, Math.min(1, fraction));
-      return prevT + clamped * (currT - prevT);
+      return prevT + Math.max(0, Math.min(1, fraction)) * (currT - prevT);
     }
 
     function recordTime(sec) {
@@ -575,24 +639,26 @@
     }
 
     function analyzeCurrentFrame(mediaTime) {
-      if (video.readyState < 2) return;
+      if (video.readyState < 2 || video.videoWidth === 0) return;
 
       const w = procCanvas.width;
       const h = procCanvas.height;
-      procCtx.drawImage(video, 0, 0, w, h);
+      try {
+        procCtx.drawImage(video, 0, 0, w, h);
+      } catch (_) {
+        return;
+      }
       const frameData = procCtx.getImageData(0, 0, w, h).data;
 
       const startSig = sampleGateSignal(gates.start, frameData, w, h);
       const finishSig = sampleGateSignal(gates.finish, frameData, w, h);
 
-      // Uppdatera visuella signalmätare i HUD
       document.getElementById('startMeter').style.width = `${Math.min(100, startSig * 2.5)}%`;
       document.getElementById('finishMeter').style.width = `${Math.min(100, finishSig * 2.5)}%`;
 
       const nowClock = getClockSeconds(mediaTime);
       const nowWallMs = performance.now();
 
-      // FPS-beräkning
       frameTimestamps.push(nowWallMs);
       while (frameTimestamps.length > 0 && nowWallMs - frameTimestamps[0] > 1000) {
         frameTimestamps.shift();
@@ -642,10 +708,7 @@
         canvas.height = rect.height;
       }
 
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
-
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       const vp = getVideoViewportRect();
       const now = performance.now();
 
@@ -659,7 +722,6 @@
       const x2 = vp.offsetX + gate.p2.x * vp.renderW;
       const y2 = vp.offsetY + gate.p2.y * vp.renderH;
 
-      // Själva laserlinjen
       ctx.save();
       ctx.strokeStyle = isFlashing ? '#ffffff' : color;
       ctx.lineWidth = isFlashing ? 6 : 3.5;
@@ -673,7 +735,6 @@
       ctx.stroke();
       ctx.restore();
 
-      // Dragpunkter (P1 & P2)
       [
         { x: x1, y: y1, tag: '1' },
         { x: x2, y: y2, tag: '2' }
@@ -693,7 +754,6 @@
         ctx.fillText(pt.tag, pt.x, pt.y);
       });
 
-      // Etikett vid linjens mittpunkt
       const mx = (x1 + x2) / 2;
       const my = (y1 + y2) / 2;
       ctx.fillStyle = 'rgba(11, 14, 20, 0.85)';
@@ -705,7 +765,7 @@
       ctx.fillText(label, mx, my);
     }
 
-    // Touch- och musinteraktion för de 4 punkterna
+    // Touch / Mus-dragning
     function getPointerCoords(e) {
       const rect = canvas.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -716,9 +776,7 @@
     canvas.addEventListener('pointerdown', (e) => {
       const ptr = getPointerCoords(e);
       const vp = getVideoViewportRect();
-      const hitRadius = 28; // Generös träffyta för fingrar
-
-      let bestDist = hitRadius;
+      let bestDist = 30;
       let chosen = null;
 
       ['start', 'finish'].forEach(gateKey => {
@@ -744,10 +802,8 @@
       if (!activeHandle) return;
       const ptr = getPointerCoords(e);
       const vp = getVideoViewportRect();
-
       const normX = Math.min(0.98, Math.max(0.02, (ptr.x - vp.offsetX) / vp.renderW));
       const normY = Math.min(0.98, Math.max(0.02, (ptr.y - vp.offsetY) / vp.renderH));
-
       gates[activeHandle.gate][activeHandle.point] = { x: normX, y: normY };
       gates[activeHandle.gate].bgLuma = null;
     });
@@ -761,26 +817,18 @@
     canvas.addEventListener('pointerup', releaseHandle);
     canvas.addEventListener('pointercancel', releaseHandle);
 
-    // Synkronisera analys med exakta videobildrutor (requestVideoFrameCallback)
-    function startFrameLoop() {
-      const renderLoop = () => {
-        drawOverlay();
-        requestAnimationFrame(renderLoop);
-      };
-      requestAnimationFrame(renderLoop);
-
-      if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
-        const onVideoFrame = (now, metadata) => {
-          analyzeCurrentFrame(metadata.mediaTime);
-          video.requestVideoFrameCallback(onVideoFrame);
-        };
-        video.requestVideoFrameCallback(onVideoFrame);
-      } else {
-        setInterval(() => analyzeCurrentFrame(video.currentTime), 16);
+    // Huvudloop för både rendering och analys
+    function mainLoop() {
+      drawOverlay();
+      if (!video.paused && !video.ended) {
+        analyzeCurrentFrame(video.currentTime);
       }
+      requestAnimationFrame(mainLoop);
     }
 
-    // Knappar & reglage
+    // Knappar
+    document.getElementById('btnStartCamBig').addEventListener('click', startCamera);
+
     function armSystem() {
       resetBackgrounds();
       prevClockSec = 0;
@@ -835,48 +883,92 @@
     // Lägesväxling Live vs 240 fps Video
     document.getElementById('btnLiveMode').addEventListener('click', () => {
       mode = 'live';
+      showError('');
       document.getElementById('btnLiveMode').classList.add('active');
       document.getElementById('btnVideoMode').classList.remove('active');
       document.getElementById('liveControls').classList.remove('hidden');
       document.getElementById('slowmoControls').classList.remove('visible');
-      startCamera();
+      startPrompt.classList.remove('hidden');
     });
 
     document.getElementById('btnVideoMode').addEventListener('click', () => {
       mode = 'video';
+      showError('');
       document.getElementById('btnVideoMode').classList.add('active');
       document.getElementById('btnLiveMode').classList.remove('active');
       document.getElementById('liveControls').classList.add('hidden');
       document.getElementById('slowmoControls').classList.add('visible');
+      startPrompt.classList.add('hidden');
+
       if (currentStream) {
         currentStream.getTracks().forEach(t => t.stop());
-        video.srcObject = null;
+        currentStream = null;
       }
+      video.srcObject = null;
     });
+
+    // Uppladdning & iOS-rendering av video
+    const scrubber = document.getElementById('videoScrubber');
+    const videoTimeLabel = document.getElementById('videoTimeLabel');
 
     document.getElementById('videoUpload').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      video.src = URL.createObjectURL(file);
-      video.loop = false;
-      resetBackgrounds();
-      state = 'IDLE';
-      document.getElementById('stateLabel').textContent = 'Video laddad';
+      showError('');
+
+      if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+      currentObjectUrl = URL.createObjectURL(file);
+
+      video.srcObject = null;
+      video.src = currentObjectUrl;
+      video.muted = true;
+      video.playsInline = true;
+      video.load();
+
+      video.onloadeddata = () => {
+        // Tvinga iOS Safari att rita ut första bildrutan direkt
+        video.currentTime = 0.01;
+        resetBackgrounds();
+        state = 'IDLE';
+        document.getElementById('stateLabel').textContent = 'Video redo';
+      };
+
+      video.onerror = () => {
+        showError('Kunde inte läsa videofilen. Testa att klippa/spara videon i Bilder-appen så den sparas som standard MP4/MOV.');
+      };
+    });
+
+    video.addEventListener('timeupdate', () => {
+      if (mode !== 'video' || !video.duration) return;
+      scrubber.value = Math.round((video.currentTime / video.duration) * 1000);
+      videoTimeLabel.textContent = `${video.currentTime.toFixed(2)} s`;
+    });
+
+    scrubber.addEventListener('input', () => {
+      if (!video.duration) return;
+      video.pause();
+      video.currentTime = (scrubber.value / 1000) * video.duration;
+      analyzeCurrentFrame(video.currentTime);
     });
 
     document.getElementById('btnPlayPause').addEventListener('click', () => {
+      if (!video.src) return;
       if (video.paused) video.play();
       else video.pause();
     });
 
     document.getElementById('btnStepBack').addEventListener('click', () => {
+      if (!video.src) return;
       video.pause();
       video.currentTime = Math.max(0, video.currentTime - (1 / 30));
+      setTimeout(() => analyzeCurrentFrame(video.currentTime), 40);
     });
 
     document.getElementById('btnStepFwd').addEventListener('click', () => {
+      if (!video.src) return;
       video.pause();
       video.currentTime = Math.min(video.duration || 0, video.currentTime + (1 / 30));
+      setTimeout(() => analyzeCurrentFrame(video.currentTime), 40);
     });
 
     document.getElementById('btnCopyTimes').addEventListener('click', () => {
@@ -886,9 +978,7 @@
       alert('Tiderna har kopierats till urklipp!');
     });
 
-    // Initiera
-    startCamera();
-    startFrameLoop();
+    requestAnimationFrame(mainLoop);
   </script>
 </body>
 </html>
